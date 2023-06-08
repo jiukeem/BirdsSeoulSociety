@@ -10,7 +10,8 @@ def refine_bss_data():
     naturing = process_naturing_data(location)
 
     combined_data = pd.concat([ebirds, naturing])
-    combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
+    # combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
+    # 같은 파일이 이미 존재할 경우 어떻게 처리되는지 체크
     print(combined_data)
 
 
@@ -114,29 +115,55 @@ def check_file_is_naturing_raw(df):
 
 
 def trim_naturing_raw_data(data, location):
-    df = get_necessary_columns_in_naturing_raw_data(data)
-    df = drop_not_bird_data(df)
-    df = drop_out_dated_data(df)
+    df = drop_not_bird_row(data)
+    df = drop_out_dated_row(df)
+    df = drop_invalid_location_row(df, location)
+
+    df = get_necessary_columns_in_naturing_raw_data(df)
     df = trim_date_to_year_month_day(df)
     df = insert_required_column(df, location)
 
     return df
 
 
-def drop_not_bird_data(data):
+def drop_not_bird_row(data):
     data = data[data['생물분류'] == '조류']
     data = data.drop('생물분류', axis=1)
     return data
 
 
-def get_necessary_columns_in_naturing_raw_data(data):
-    data = data[['관찰일', '생물이름', '생물분류']]
-    return data.rename(columns={'생물이름': 'Species'})
-
-
-def drop_out_dated_data(data):
+def drop_out_dated_row(data):
     data['관찰일'] = pd.to_datetime(data['관찰일'])
     return data[(data['관찰일'] > '2022-04-01') & (data['관찰일'] < '2023-03-01')]
+
+
+def drop_invalid_location_row(data, location):
+    # 추후 사이트별 위도/경도 값 딕셔너리 구축 필요
+    # 어린이대공원의 경우 경도 127.069425-127.092399 위도 37.541118-37.559150
+
+    data = drop_invalid_location_row_with_longitude(data, location)
+    data = drop_invalid_location_row_with_latitude(data, location)
+
+    return data
+
+
+def drop_invalid_location_row_with_longitude(data, location):
+    data['경도'] = pd.to_numeric(data['경도'])
+    data = data[(127.069425 < data['경도']) & (data['경도'] < 127.092399)]
+
+    return data
+
+
+def drop_invalid_location_row_with_latitude(data, location):
+    data['위도'] = pd.to_numeric(data['위도'])
+    data = data[(37.541118 < data['위도']) & (data['위도'] < 37.559150)]
+
+    return data
+
+
+def get_necessary_columns_in_naturing_raw_data(data):
+    data = data[['관찰일', '생물이름']]
+    return data.rename(columns={'생물이름': 'Species'})
 
 
 def trim_date_to_year_month_day(data):
