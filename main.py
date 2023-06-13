@@ -6,24 +6,33 @@ import os
 def refine_bss_data():
     location = get_location()
 
-    ebirds = process_ebirds_data(location)
-    naturing = process_naturing_data(location)
+    ebirds, birds_name_table = process_ebirds_data(location)
+    naturing = process_naturing_data(location, birds_name_table)
 
     combined_data = pd.concat([ebirds, naturing])
-    # combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
+    print(combined_data.shape)
+    combined_data = combined_data[
+        ['Species', 'English name', 'Korean name', 'Count', 'Year', 'Month', 'Day', 'Location', 'isNaturing']]
+    combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
     # 같은 파일이 이미 존재할 경우 어떻게 처리되는지 체크
-    print(combined_data)
+    # print(combined_data)
 
 
 def process_ebirds_data(location):
-    ebirds_raw_data_list = get_ebirds_raw_data_list()
-    ebirds_trimmed_concat_data = trim_ebirds_raw_data(ebirds_raw_data_list, location)
-    return ebirds_trimmed_concat_data
+    ebirds_kr_trimmed_concat_data = trim_ebirds_raw_data(location, lang='kr')
+    ebirds_en_trimmed_concat_data = trim_ebirds_raw_data(location, lang='en')
+    print(ebirds_kr_trimmed_concat_data.shape, ebirds_en_trimmed_concat_data.shape)
+
+    ebirds_final_data = concat_ebirds_kr_with_en_data(kr_data=ebirds_kr_trimmed_concat_data,
+                                                      en_data=ebirds_en_trimmed_concat_data)
+    print(ebirds_final_data.shape)
+    birds_name_table = set_and_return_birds_name_table(ebirds_final_data)
+    return ebirds_final_data, birds_name_table
 
 
-def process_naturing_data(location):
+def process_naturing_data(location, birds_name_table):
     naturing_raw_data = get_naturing_raw_data()
-    naturing_trimmed_data = trim_naturing_raw_data(naturing_raw_data, location)
+    naturing_trimmed_data = trim_naturing_raw_data(naturing_raw_data, location, birds_name_table)
     return naturing_trimmed_data
 
 
@@ -40,12 +49,23 @@ def get_location():
     return location
 
 
-def get_ebirds_raw_data_list():
+def get_ebirds_raw_data_list(lang='kr'):
     ebirds_raw_data_list = []
+    path = ''
 
     # delete later
-    path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_kr'
-    #path = input('ebirds 로우 파일들이 들어있는 폴더를 알려주세요\n')
+    if lang == 'kr':
+        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_kr'
+    elif lang == 'en':
+        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_en'
+
+    # if lang == 'kr':
+    #     path = input('ebirds kr raw 파일들이 들어있는 폴더를 알려주세요\n')
+    # elif lang == 'en':
+    #     path = input('ebirds en raw 파일들이 들어있는 폴더를 알려주세요\n')
+    # else:
+    #     raise ValueError('코드 오류: get_ebirds_raw_data_list param error')
+
     files_path = glob.glob(os.path.join(path, "*.csv"))
     for file_path in files_path:
         df = pd.read_csv(file_path)
@@ -64,17 +84,31 @@ def check_file_is_ebird_raw(df):
     return
 
 
-def trim_ebirds_raw_data(data_list, location):
+def trim_ebirds_raw_data(location, lang='kr'):
+    pd.options.display.max_columns = None
+    pd.options.display.max_rows = None
+    # delete later - for debugging
+
+    data_list = get_ebirds_raw_data_list(lang)
+
     temp_ebirds_trimmed_data_list = []
 
     for data in data_list:
         data = get_necessary_columns_in_ebird_raw_data(data)
+        separate_scientific_name_from_species_column(data, lang)
         data = split_observation_date(data)
-        data = add_location_is_naturing_columns(data, location, False)
+        data = add_location_and_is_naturing_columns(data, location, False)
         temp_ebirds_trimmed_data_list.append(data)
 
     ebirds_trimmed_concat_data = pd.concat(temp_ebirds_trimmed_data_list, axis=0, ignore_index=True)
     return ebirds_trimmed_concat_data
+
+
+def concat_ebirds_kr_with_en_data(kr_data, en_data):
+    kr_data['English name'] = en_data['English name']
+    # TODO 추후수정 요. 그냥 컬럼 떼다 붙이는게 아니라 birds_name_table 에서 참조 부 붙여야함
+
+    return kr_data
 
 
 def get_necessary_columns_in_ebird_raw_data(df):
@@ -90,15 +124,31 @@ def split_observation_date(df):
     return df
 
 
-def add_location_is_naturing_columns(df, location, is_naturing):
+def add_location_and_is_naturing_columns(df, location, is_naturing):
     df['Location'] = location
     df['isNaturing'] = is_naturing
     return df
 
 
+def separate_scientific_name_from_species_column(data, lang):
+    if lang == 'kr':
+        split = data['Species'].str.split('(', expand=True, n=1)
+        split.columns = ['Korean name', 'Species']
+        data['Korean name'] = split['Korean name'].str.strip()
+        data['Species'] = split['Species'].str[:-1].str.strip()
+
+    else:
+        split = data['Species'].str.split('(', expand=True, n=1)
+        split.columns = ['English name', 'Species']
+        data['English name'] = split['English name'].str.strip()
+        data['Species'] = split['Species'].str[:-1].str.strip()
+
+    return data
+
+
 def get_naturing_raw_data():
     pd.set_option('display.max_columns', None)
-    #path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
+    # path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
 
     # delete later
     path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\naturing\네이처링 어대공_20230514183119.csv'
@@ -114,16 +164,33 @@ def check_file_is_naturing_raw(df):
     return
 
 
-def trim_naturing_raw_data(data, location):
-    df = drop_not_bird_row(data)
-    df = drop_out_dated_row(df)
-    df = drop_invalid_location_row(df, location)
+def set_and_return_birds_name_table(data):
+    path = r'C:\Users\z\Desktop\birds_name_table.csv'
 
-    df = get_necessary_columns_in_naturing_raw_data(df)
-    df = trim_date_to_year_month_day(df)
-    df = insert_required_column(df, location)
+    existing_name_table = pd.read_csv(path, encoding='ANSI')
+    new_name_table = data[['Species', 'Korean name', 'English name']].drop_duplicates(keep='first')
+    birds_name_table = pd.concat([existing_name_table, new_name_table])
+    birds_name_table = birds_name_table.drop_duplicates(keep='first')
 
-    return df
+    birds_name_table.to_csv(r'C:\Users\z\Desktop\birds_name_table.csv', index=False, encoding='ANSI')
+    return birds_name_table
+
+
+def trim_naturing_raw_data(data, location, birds_name_table):
+    naturing_data = drop_not_bird_row(data)
+    naturing_data = drop_out_dated_row(naturing_data)
+    naturing_data = drop_invalid_location_row(naturing_data, location)
+
+    naturing_data = get_necessary_columns_in_naturing_raw_data(naturing_data)
+    naturing_data = trim_date_to_year_month_day(naturing_data)
+    naturing_data = insert_required_column(naturing_data, location)
+    print(naturing_data.shape)
+    naturing_data = naturing_data.drop_duplicates()
+    print(naturing_data.shape)
+    naturing_data = add_scientific_name_and_english_name(naturing_data, birds_name_table)
+    print(naturing_data.shape)
+
+    return naturing_data
 
 
 def drop_not_bird_row(data):
@@ -183,10 +250,41 @@ def insert_required_column(data, location):
     return data
 
 
+def add_scientific_name_and_english_name(data, birds_name_table):
+    if not {'Species', 'Korean name', 'English name'}.issubset(birds_name_table.columns):
+        raise ValueError('birds_name_table 이 제대로 읽히지 않은 것 같습니다.')
+
+    korean_to_scientific_and_english_name_dict = {}
+    for i in range(len(birds_name_table)):
+        species = birds_name_table.loc[i, 'Species']
+        korean_name = birds_name_table.loc[i, 'Korean name']
+        english_name = birds_name_table.loc[i, 'English name']
+
+        if type(species) is str and type(korean_name) is str and type(english_name) is str:
+            species = species.strip()
+            korean_name = korean_name.strip()
+            english_name = english_name.strip()
+
+        korean_to_scientific_and_english_name_dict[korean_name] = [species, english_name]
+
+    data = data.rename(columns={'Species': 'Korean name'})
+    data['Species'] = data.apply(
+        lambda x: return_species_and_english_name_based_on_korean_name(x['Korean name'], korean_to_scientific_and_english_name_dict)[0], axis=1
+    )
+    data['English name'] = data.apply(
+        lambda x: return_species_and_english_name_based_on_korean_name(x['Korean name'], korean_to_scientific_and_english_name_dict)[1], axis=1
+    )
+
+    return data
+
+
+def return_species_and_english_name_based_on_korean_name(key, table):
+    if key in table.keys():
+        return table[key]
+    else:
+        return ['', '']
+
+
 if __name__ == '__main__':
+    pd.options.mode.chained_assignment = None
     refine_bss_data()
-
-
-
-
-
