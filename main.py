@@ -10,9 +10,20 @@ def refine_bss_data():
     naturing = process_naturing_data(location, birds_name_table)
 
     combined_data = pd.concat([ebirds, naturing])
-    print(combined_data.shape)
     combined_data = combined_data[
         ['Species', 'English name', 'Korean name', 'Count', 'Year', 'Month', 'Day', 'Location', 'isNaturing']]
+
+    # rename function name later
+    combined_data = merge_naturing_to_ebirds(combined_data)
+
+    # use only needed
+    # ------------------------------------------------------------------
+    # species_num_per_month = combined_data.groupby(['Year', 'Month']).size().reset_index()
+    # species_num_per_month['Location'] = location
+    # species_num_per_month.columns = ['Year', 'Month', 'Species count', 'Location']
+    # species_num_per_month.to_excel(r'C:\Users\z\Desktop\23output.xlsx', index=False)
+    # ------------------------------------------------------------------
+
     combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
     # 같은 파일이 이미 존재할 경우 어떻게 처리되는지 체크
     # print(combined_data)
@@ -21,11 +32,15 @@ def refine_bss_data():
 def process_ebirds_data(location):
     ebirds_kr_trimmed_concat_data = trim_ebirds_raw_data(location, lang='kr')
     ebirds_en_trimmed_concat_data = trim_ebirds_raw_data(location, lang='en')
-    print(ebirds_kr_trimmed_concat_data.shape, ebirds_en_trimmed_concat_data.shape)
 
     ebirds_final_data = concat_ebirds_kr_with_en_data(kr_data=ebirds_kr_trimmed_concat_data,
                                                       en_data=ebirds_en_trimmed_concat_data)
-    print(ebirds_final_data.shape)
+    # use only needed
+    # ------------------------------------------------------------------
+    ebirds_final_data = handle_courses_on_single_day(ebirds_final_data)
+    ebirds_final_data = handle_record_on_single_month(ebirds_final_data)
+    # ------------------------------------------------------------------
+
     birds_name_table = set_and_return_birds_name_table(ebirds_final_data)
     return ebirds_final_data, birds_name_table
 
@@ -33,12 +48,15 @@ def process_ebirds_data(location):
 def process_naturing_data(location, birds_name_table):
     naturing_raw_data = get_naturing_raw_data()
     naturing_trimmed_data = trim_naturing_raw_data(naturing_raw_data, location, birds_name_table)
+
+    # 집비둘기는 세지 않음~
+    naturing_trimmed_data.drop(naturing_trimmed_data[naturing_trimmed_data['Korean name'].astype('string') == '집비둘기'].index, inplace=True)
     return naturing_trimmed_data
 
 
 def get_location():
     # delete later
-    return '어린이대공원'
+    return '올림픽공원'
 
     location = input('탐조 장소를 입력해주세요.\n')
 
@@ -55,9 +73,9 @@ def get_ebirds_raw_data_list(lang='kr'):
 
     # delete later
     if lang == 'kr':
-        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_kr'
+        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\06_올림픽공원\ebird_kr'
     elif lang == 'en':
-        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_en'
+        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\06_올림픽공원\ebird_en'
 
     # if lang == 'kr':
     #     path = input('ebirds kr raw 파일들이 들어있는 폴더를 알려주세요\n')
@@ -106,7 +124,7 @@ def trim_ebirds_raw_data(location, lang='kr'):
 
 def concat_ebirds_kr_with_en_data(kr_data, en_data):
     kr_data['English name'] = en_data['English name']
-    # TODO 추후수정 요. 그냥 컬럼 떼다 붙이는게 아니라 birds_name_table 에서 참조 부 붙여야함
+    # TODO 추후수정 요. 그냥 컬럼 떼다 붙이는게 아니라 birds_name_table 에서 참조 후 붙여야함
 
     return kr_data
 
@@ -151,7 +169,7 @@ def get_naturing_raw_data():
     # path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
 
     # delete later
-    path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\naturing\네이처링 어대공_20230514183119.csv'
+    path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\06_올림픽공원\naturing\네이처링 올림픽공원_20230514190031.csv'
     naturing_raw_data = pd.read_csv(path, encoding='cp949')
     check_file_is_naturing_raw(naturing_raw_data)
 
@@ -164,6 +182,26 @@ def check_file_is_naturing_raw(df):
     return
 
 
+def handle_courses_on_single_day(ebirds_data):
+    # 한번에 두코스로 돌았을 경우 최댓값을 남김
+    ebirds_data = ebirds_data.sort_values(by='Count', ascending=False)
+    ebirds_data = ebirds_data.drop_duplicates(subset=['Korean name', 'Year', 'Month', 'Day'], keep="first")
+    ebirds_data = ebirds_data.sort_index()
+    return ebirds_data
+
+
+def handle_record_on_single_month(ebirds_data):
+    # 한 달에 두번이상 돌았을 경우 최댓값을 남김
+    ebirds_data = ebirds_data.sort_values(by='Count', ascending=False)
+    ebirds_data = ebirds_data.drop_duplicates(subset=['Korean name', 'Year', 'Month'], keep="first")
+    ebirds_data = ebirds_data.sort_index()
+    return ebirds_data
+
+
+def merge_naturing_to_ebirds(concat_data):
+    # 이버드에 기록된 네이처링 기록은 삭제(달 기준)
+    return concat_data.drop_duplicates(subset=['Korean name', 'Year', 'Month'], keep="first")
+
 def set_and_return_birds_name_table(data):
     path = r'C:\Users\z\Desktop\birds_name_table.csv'
 
@@ -172,7 +210,7 @@ def set_and_return_birds_name_table(data):
     birds_name_table = pd.concat([existing_name_table, new_name_table])
     birds_name_table = birds_name_table.drop_duplicates(keep='first')
 
-    birds_name_table.to_csv(r'C:\Users\z\Desktop\birds_name_table.csv', index=False, encoding='ANSI')
+    # birds_name_table.to_csv(r'C:\Users\z\Desktop\birds_name_table.csv', index=False, encoding='ANSI')
     return birds_name_table
 
 
@@ -180,15 +218,12 @@ def trim_naturing_raw_data(data, location, birds_name_table):
     naturing_data = drop_not_bird_row(data)
     naturing_data = drop_out_dated_row(naturing_data)
     naturing_data = drop_invalid_location_row(naturing_data, location)
-
+    naturing_data = drop_empty_row(naturing_data)
     naturing_data = get_necessary_columns_in_naturing_raw_data(naturing_data)
     naturing_data = trim_date_to_year_month_day(naturing_data)
     naturing_data = insert_required_column(naturing_data, location)
-    print(naturing_data.shape)
     naturing_data = naturing_data.drop_duplicates()
-    print(naturing_data.shape)
     naturing_data = add_scientific_name_and_english_name(naturing_data, birds_name_table)
-    print(naturing_data.shape)
 
     return naturing_data
 
@@ -225,6 +260,11 @@ def drop_invalid_location_row_with_latitude(data, location):
     data['위도'] = pd.to_numeric(data['위도'])
     data = data[(37.541118 < data['위도']) & (data['위도'] < 37.559150)]
 
+    return data
+
+
+def drop_empty_row(data):
+    data = data.drop(data[data['생물이름'].isnull()].index)
     return data
 
 
