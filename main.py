@@ -10,30 +10,41 @@ def refine_bss_data():
     location = get_location()
 
     # 2. refine two raw data - ebirds & naturing
-    ebirds, birds_name_table = process_ebirds_data(location)
+    ebirds_basic, ebirds_merged, birds_name_table = process_ebirds_data(location)
     naturing = process_naturing_data(location, birds_name_table)
 
     # 3. concat two refined data
-    combined_data = pd.concat([ebirds, naturing])
+    basic_data = pd.concat([ebirds_basic, naturing])
 
     # +alpha: just changing columns order
-    combined_data = combined_data[
-        ['Species', 'English name', 'Korean name', 'Count', 'Year', 'Month', 'Day', 'Location', 'isNaturing']]
+    basic_data = basic_data[
+        ['Cornell index', 'Species', 'English name', 'Korean name', 'Count', 'Year', 'Month', 'Day', 'Location', 'isNaturing']]
 
-    # rename function name later
-    combined_data = merge_naturing_to_ebirds(combined_data)
+    # TODO refactor
+    merged_data = pd.concat([ebirds_merged, naturing])
+    merged_data = merged_data[
+        ['Cornell index', 'Species', 'English name', 'Korean name', 'Count', 'Year', 'Month', 'Day', 'Location', 'isNaturing']]
+    merged_data = drop_duplicate_btw_ebird_and_naturing(merged_data)
 
-    # use only needed
-    # ------------------------------------------------------------------
-    # species_num_per_month = combined_data.groupby(['Year', 'Month']).size().reset_index()
-    # species_num_per_month['Location'] = location
-    # species_num_per_month.columns = ['Year', 'Month', 'Species count', 'Location']
-    # species_num_per_month.to_excel(r'C:\Users\z\Desktop\23output.xlsx', index=False)
-    # ------------------------------------------------------------------
+    # num of observed species per month
+    species_num_per_month = merged_data.groupby(['Year', 'Month']).size().reset_index(name='Species count')
+    species_num_per_month['Location'] = location
+    species_num_per_month.columns = ['Year', 'Month', 'Species count', 'Location']
 
-    combined_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
-    # 같은 파일이 이미 존재할 경우 어떻게 처리되는지 체크
-    # print(combined_data)
+    basic_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
+    # note - 같은 파일이 이미 존재할 경우 덮어씌워짐
+
+    output_file = f'C:/Users/z/Desktop/{location}_22-23.xlsx'
+    writer = pd.ExcelWriter(output_file)
+
+    # Write each dataframe to a different sheet in the Excel file
+    basic_data.to_excel(writer, sheet_name='basic', index=False)
+    merged_data.to_excel(writer, sheet_name='merged', index=False)
+    species_num_per_month.to_excel(writer, sheet_name='num of species per month', index=False)
+
+    # Save the Excel file
+    writer._save()
+    return
 
 
 def get_location():
@@ -61,13 +72,6 @@ def process_ebirds_data(location):
     # 3. merge kr & en data
     ebirds_final_data = merge_ebirds_kr_with_en_data(kr_data=ebirds_trimmed_concat_data_kr,
                                                      en_data=ebirds_trimmed_concat_data_en)
-    # use only needed
-    # ------------------------------------------------------------------
-    # save max count in two courses records on a single day
-    ebirds_final_data = handle_courses_on_single_day(ebirds_final_data)
-    # save max count in two records on a single month
-    ebirds_final_data = handle_record_on_single_month(ebirds_final_data)
-    # ------------------------------------------------------------------
 
     # 4. handle exception case & update bird name table from result data
     ebirds_final_data = process_exception_names(ebirds_final_data)
@@ -78,7 +82,12 @@ def process_ebirds_data(location):
     # dusky x nomann's thrush 같은 애들을 바로잡기 위함. 위의 process_exception_names 에서 한글명을 바로잡고 그에 상응하는
     # Species 와 English name 으로 변경해주는 역할.
     ebirds_final_data = add_scientific_name_and_english_name(ebirds_final_data, birds_name_table, is_naturing=False)
-    return ebirds_final_data, birds_name_table
+
+    # save max count in two courses records on a single day
+    ebirds_merged_data = handle_courses_on_single_day(ebirds_final_data)
+    # save max count in two records on a single month
+    ebirds_merged_data = handle_record_on_single_month(ebirds_merged_data)
+    return ebirds_final_data, ebirds_merged_data, birds_name_table
 
 
 def process_naturing_data(location, birds_name_table):
@@ -243,7 +252,7 @@ def handle_record_on_single_month(ebirds_data):
     return ebirds_data
 
 
-def merge_naturing_to_ebirds(concat_data):
+def drop_duplicate_btw_ebird_and_naturing(concat_data):
     # 이버드에 기록된 네이처링 기록은 삭제(달 기준)
     return concat_data.drop_duplicates(subset=['Korean name', 'Year', 'Month'], keep="first")
 
@@ -255,6 +264,8 @@ def update_and_return_birds_name_table(data):
     new_name_table = data[['Species', 'Korean name', 'English name']].drop_duplicates(keep='first')
     birds_name_table = pd.concat([existing_name_table, new_name_table])
     birds_name_table = birds_name_table.drop_duplicates(subset='Korean name', keep='first')
+
+    birds_name_table = add_cornell_index(birds_name_table)
 
     birds_name_table.to_csv(r'C:\Users\z\Desktop\birds_name_table.csv', index=False, encoding='ANSI')
     return birds_name_table
@@ -351,6 +362,36 @@ def add_scientific_name_and_english_name(data, birds_name_table, is_naturing=Tru
 
     data = pd.merge(data, birds_name_table, on='Korean name', how='left')
     return data
+
+
+def add_cornell_index(birds_name_table):
+    cornell_path = 'C:/Users/z/Downloads/Clements-v2022-October-2022.xlsx'
+
+    # generate name to idx dictionary from ebird
+    cornell_df = pd.read_excel(cornell_path)[['scientific name', 'sort v2021']]
+
+    name_to_idx = {}
+    for i in range(len(cornell_df)):
+        name = cornell_df.loc[i, "scientific name"]
+        idx = cornell_df.loc[i, "sort v2021"]
+
+        if name in name_to_idx:
+            print(f"duplicated species: {name}")
+        else:
+            name_to_idx[name] = idx
+
+    def get_index(row):
+        species = row['Species']
+        if species not in name_to_idx:
+            print(f'ERROR: {species} not in mapping table')
+            return 0
+
+        return name_to_idx[species]
+
+    birds_name_table['Cornell index'] = birds_name_table.apply(lambda x: get_index(x), axis=1)
+    birds_name_table['Cornell index'] = birds_name_table['Cornell index'].astype('int')
+
+    return birds_name_table
 
 
 if __name__ == '__main__':
