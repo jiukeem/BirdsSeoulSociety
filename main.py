@@ -120,7 +120,8 @@ def get_ebirds_raw_data_list(lang='kr'):
     else:
         raise ValueError('코드 오류: get_ebirds_raw_data_list param error')
 
-    files_path = glob.glob(os.path.join(path, "*.csv"))
+    converted_path = path.replace("\\", "/")
+    files_path = glob.glob(os.path.join(converted_path, "*.csv"))
     for file_path in files_path:
         df = pd.read_csv(file_path)
         check_file_is_ebird_raw(df)
@@ -211,7 +212,8 @@ def get_naturing_raw_data():
     pd.set_option('display.max_columns', None)
     path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
 
-    naturing_raw_data = pd.read_csv(path, encoding='cp949')
+    converted_path = path.replace("\\", "/")
+    naturing_raw_data = pd.read_csv(converted_path, encoding='cp949')
     check_file_is_naturing_raw(naturing_raw_data)
 
     return naturing_raw_data
@@ -285,7 +287,7 @@ def drop_non_bird_row(data):
 
 
 def drop_out_dated_row(data):
-    year = input('기록년도를 입력해주세요. 2022년 4월부터 2023년 3월까지일 경우 2022로 입력합니다.\n')
+    year = input('기록년도를 입력해주세요. 2022년 4월부터 2023년 3월까지일 경우 2022로 입력하시면 됩니다.\n')
     is_valid = False
 
     while not is_valid:
