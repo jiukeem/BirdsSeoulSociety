@@ -2,18 +2,18 @@ import pandas as pd
 import glob
 import os
 import re
-import seaborn as sb
+import Config
 
 
 def refine_bss_data():
     # 1. get location
     location = get_location()
 
-    # 2. refine two raw data - ebirds & naturing
+    # 2. refine two raw reference_data - ebirds & naturing
     ebirds_basic, ebirds_merged, birds_name_table = process_ebirds_data(location)
     naturing = process_naturing_data(location, birds_name_table)
 
-    # 3. concat two refined data
+    # 3. concat two refined reference_data
     basic_data = pd.concat([ebirds_basic, naturing])
 
     # +alpha: just changing columns order
@@ -31,10 +31,7 @@ def refine_bss_data():
     species_num_per_month['Location'] = location
     species_num_per_month.columns = ['Year', 'Month', 'Species count', 'Location']
 
-    basic_data.to_excel(r'C:\Users\z\Desktop\output.xlsx', index=False)
-    # note - 같은 파일이 이미 존재할 경우 덮어씌워짐
-
-    output_file = f'C:/Users/z/Desktop/{location}_22-23.xlsx'
+    output_file = f'./output/0{Config.location_dict[location]}_{location}_22-23.xlsx'
     writer = pd.ExcelWriter(output_file)
 
     # Write each dataframe to a different sheet in the Excel file
@@ -42,38 +39,34 @@ def refine_bss_data():
     merged_data.to_excel(writer, sheet_name='merged', index=False)
     species_num_per_month.to_excel(writer, sheet_name='num of species per month', index=False)
 
-    # Save the Excel file
     writer._save()
     return
 
 
 def get_location():
-    # delete later
-    return '어린이대공원'
+    location = input('다음 중 탐조 장소를 선택해주세요.\n여의샛강, 어린이대공원, 북서울꿈의숲, 창경궁, 남산, 올림픽공원, 푸른수목원, 강서습지생태공원, 중랑천\n')
 
-    location = input('다음 중 탐조 장소를 선택해주세요.\n')
-
-    while location not in ['여의샛강', '어린이대공원', '북서울꿈의숲', '창경궁', '남산', '올림픽공원', '푸른수목원', '강서습지', '중랑천']:
-        print('다음 중 탐조 장소를 선택해주세요. 여의샛강, 어린이대공원, 북서울꿈의숲, 창경궁, 남산, 올림픽공원, 푸른수목원, 강서습지, 중랑천\n')
+    while location not in Config.location_dict.keys():
+        print('장소가 올바르게 인식되지 않았습니다. 띄어쓰기 없이 다 붙여 입력해주세요.\n')
         location = input()
 
     return location
 
 
 def process_ebirds_data(location):
-    # 1. get each raw data list
+    # 1. get each raw reference_data list
     ebirds_raw_data_list_kr = get_ebirds_raw_data_list(lang='kr')
     ebirds_raw_data_list_en = get_ebirds_raw_data_list(lang='en')
 
-    # 2. trim data list and concat to one data
+    # 2. trim reference_data list and concat to one reference_data
     ebirds_trimmed_concat_data_kr = trim_ebirds_raw_data(ebirds_raw_data_list_kr, location, lang='kr')
     ebirds_trimmed_concat_data_en = trim_ebirds_raw_data(ebirds_raw_data_list_en, location, lang='en')
 
-    # 3. merge kr & en data
+    # 3. merge kr & en reference_data
     ebirds_final_data = merge_ebirds_kr_with_en_data(kr_data=ebirds_trimmed_concat_data_kr,
                                                      en_data=ebirds_trimmed_concat_data_en)
 
-    # 4. handle exception case & update bird name table from result data
+    # 4. handle exception case & update bird name table from result reference_data
     ebirds_final_data = process_exception_names(ebirds_final_data)
     birds_name_table = update_and_return_birds_name_table(ebirds_final_data)
 
@@ -119,20 +112,13 @@ def trim_ebirds_raw_data(data_list, location, lang='kr'):
 
 def get_ebirds_raw_data_list(lang='kr'):
     ebirds_raw_data_list = []
-    path = ''
 
-    # delete later
     if lang == 'kr':
-        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_kr'
+        path = input('ebirds kr raw 파일들이 들어있는 폴더 경로를 알려주세요\n')
     elif lang == 'en':
-        path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\ebird_en'
-
-    # if lang == 'kr':
-    #     path = input('ebirds kr raw 파일들이 들어있는 폴더를 알려주세요\n')
-    # elif lang == 'en':
-    #     path = input('ebirds en raw 파일들이 들어있는 폴더를 알려주세요\n')
-    # else:
-    #     raise ValueError('코드 오류: get_ebirds_raw_data_list param error')
+        path = input('ebirds en raw 파일들이 들어있는 폴더 경로를 알려주세요\n')
+    else:
+        raise ValueError('코드 오류: get_ebirds_raw_data_list param error')
 
     files_path = glob.glob(os.path.join(path, "*.csv"))
     for file_path in files_path:
@@ -141,7 +127,8 @@ def get_ebirds_raw_data_list(lang='kr'):
         ebirds_raw_data_list.append(df)
 
     if len(ebirds_raw_data_list) == 0:
-        raise ValueError('이버드 로우 파일을 가져오지 못했습니다. 올바른 경로인지 확인해주세요.')
+        raise ValueError('이버드 raw 파일을 가져오지 못했습니다. 올바른 경로인지 확인하고 다시 입력해주세요.\n')
+
 
     return ebirds_raw_data_list
 
@@ -222,10 +209,8 @@ def add_location_and_is_naturing_columns(df, location, is_naturing):
 
 def get_naturing_raw_data():
     pd.set_option('display.max_columns', None)
-    # path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
-    # delete later
+    path = input('네이처링 로우 파일의 위치를 알려주세요.\n')
 
-    path = r'C:\Users\z\Desktop\서울의새\데이터분석\2022-2023\raw_data\02_어린이대공원\naturing\네이처링 어대공_20230514183119.csv'
     naturing_raw_data = pd.read_csv(path, encoding='cp949')
     check_file_is_naturing_raw(naturing_raw_data)
 
@@ -258,7 +243,7 @@ def drop_duplicate_btw_ebird_and_naturing(concat_data):
 
 
 def update_and_return_birds_name_table(data):
-    path = r'C:\Users\z\Desktop\birds_name_table.csv'
+    path = './reference_data/birds_name_table.csv'
 
     existing_name_table = pd.read_csv(path, encoding='ANSI')
     new_name_table = data[['Species', 'Korean name', 'English name']].drop_duplicates(keep='first')
@@ -267,7 +252,7 @@ def update_and_return_birds_name_table(data):
 
     birds_name_table = add_cornell_index(birds_name_table)
 
-    birds_name_table.to_csv(r'C:\Users\z\Desktop\birds_name_table.csv', index=False, encoding='ANSI')
+    birds_name_table.to_csv(path, index=False, encoding='ANSI')
     return birds_name_table
 
 
@@ -300,20 +285,33 @@ def drop_non_bird_row(data):
 
 
 def drop_out_dated_row(data):
+    year = input('기록년도를 입력해주세요. 2022년 4월부터 2023년 3월까지일 경우 2022로 입력합니다.\n')
+    is_valid = False
+
+    while not is_valid:
+        try:
+            number = int(year)
+            if number < 2018 or number > 2024:
+                year = input('올바른 입력값이 아닙니다. 2018년도부터 2022년도 중 해당하는 년도를 숫자만 입력해주세요\n')
+            else:
+                is_valid = True
+        except ValueError:
+            year = input('숫자만 입력해주세요\n')
+
     data['관찰일'] = pd.to_datetime(data['관찰일'])
-    return data[(data['관찰일'] > '2022-04-01') & (data['관찰일'] < '2023-03-01')]
+    return data[(data['관찰일'] > f'{int(year)}-04-01') & (data['관찰일'] < f'{int(year)+1}-03-01')]
 
 
 def fill_location_empty_row(df, location):
-    df['경도'] = df['경도'].fillna(127.067)
-    df['위도'] = df['위도'].fillna(37.55)
+    average_longitude = sum(Config.location_longitude_dict[location])/2
+    average_latitude = sum(Config.location_latitude_dict[location])/2
+
+    df['경도'] = df['경도'].fillna(average_longitude)
+    df['위도'] = df['위도'].fillna(average_latitude)
     return df
 
 
 def drop_invalid_location_row(data, location):
-    # 추후 사이트별 위도/경도 값 딕셔너리 구축 필요
-    # 어린이대공원의 경우 경도 127.069425-127.092399 위도 37.541118-37.559150
-
     data = drop_invalid_location_row_with_longitude(data, location)
     data = drop_invalid_location_row_with_latitude(data, location)
 
@@ -322,14 +320,18 @@ def drop_invalid_location_row(data, location):
 
 def drop_invalid_location_row_with_longitude(data, location):
     data['경도'] = pd.to_numeric(data['경도'])
-    data = data[(127.069425 < data['경도']) & (data['경도'] < 127.092399)]
+    min_longitude = Config.location_longitude_dict[location][0]
+    max_longitude = Config.location_longitude_dict[location][1]
+    data = data[(min_longitude < data['경도']) & (data['경도'] < max_longitude)]
 
     return data
 
 
 def drop_invalid_location_row_with_latitude(data, location):
     data['위도'] = pd.to_numeric(data['위도'])
-    data= data[(37.541118 < data['위도']) & (data['위도'] < 37.559150)]
+    min_latitude = Config.location_latitude_dict[location][0]
+    max_latitude = Config.location_latitude_dict[location][1]
+    data= data[(min_latitude < data['위도']) & (data['위도'] < max_latitude)]
 
     return data
 
@@ -365,7 +367,7 @@ def add_scientific_name_and_english_name(data, birds_name_table, is_naturing=Tru
 
 
 def add_cornell_index(birds_name_table):
-    cornell_path = 'C:/Users/z/Downloads/Clements-v2022-October-2022.xlsx'
+    cornell_path = './reference_data/Clements-v2022-October-2022.xlsx'
 
     # generate name to idx dictionary from ebird
     cornell_df = pd.read_excel(cornell_path)[['scientific name', 'sort v2021']]
@@ -383,7 +385,7 @@ def add_cornell_index(birds_name_table):
     def get_index(row):
         species = row['Species']
         if species not in name_to_idx:
-            print(f'ERROR: {species} not in mapping table')
+            print(f'NOTICE: {species} not in mapping table')
             return 0
 
         return name_to_idx[species]
