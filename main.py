@@ -41,6 +41,8 @@ def refine_bss_data():
 
     writer._save()
     print('정상적으로 처리되었습니다. output 폴더 안에서 결과물을 확인하실 수 있습니다.')
+
+    a = input()
     return
 
 
