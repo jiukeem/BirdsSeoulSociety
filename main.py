@@ -40,6 +40,7 @@ def refine_bss_data():
     species_num_per_month.to_excel(writer, sheet_name='num of species per month', index=False)
 
     writer._save()
+    print('정상적으로 처리되었습니다. output 폴더 안에서 결과물을 확인하실 수 있습니다.')
     return
 
 
@@ -293,7 +294,7 @@ def drop_out_dated_row(data):
     while not is_valid:
         try:
             number = int(year)
-            if number < 2018 or number > 2024:
+            if number < 2018 or number > 2022:
                 year = input('올바른 입력값이 아닙니다. 2018년도부터 2022년도 중 해당하는 년도를 숫자만 입력해주세요\n')
             else:
                 is_valid = True
@@ -369,10 +370,10 @@ def add_scientific_name_and_english_name(data, birds_name_table, is_naturing=Tru
 
 
 def add_cornell_index(birds_name_table):
-    cornell_path = './reference_data/Clements-v2022-October-2022.xlsx'
+    cornell_path = './reference_data/cornell_index.csv'
 
     # generate name to idx dictionary from ebird
-    cornell_df = pd.read_excel(cornell_path)[['scientific name', 'sort v2021']]
+    cornell_df = pd.read_csv(cornell_path)
 
     name_to_idx = {}
     for i in range(len(cornell_df)):

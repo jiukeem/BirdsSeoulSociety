@@ -141,7 +141,7 @@ Mergellus albellus,흰비오리,Smew,671
 Asio otus,칡부엉이,Long-eared Owl,8806
 Mareca strepera,알락오리,Gadwall,447
 Anas acuta,고방오리,Northern Pintail,526
-Aythya ferina x nyroca,흰죽지 x 적갈색흰죽지 (교잡종),Common Pochard x Ferruginous Duck (hybrid,0
+Aythya ferina x nyroca,흰죽지 x 적갈색흰죽지 (교잡종),Common Pochard x Ferruginous Duck (hybrid),0
 Podiceps nigricollis,검은목논병아리,Eared Grebe,1806
 Larus crassirostris,괭이갈매기,Black-tailed Gull,6313
 Sibirionetta formosa,가창오리,Baikal Teal,424
@@ -150,3 +150,6 @@ Anser fabalis,큰부리큰기러기,Taiga Bean-Goose,268
 Anas crecca,쇠오리 / 미국쇠오리,Green-winged Teal,541
 Larus canus,갈매기,Common Gull,6318
 Larus fuscus taimyrensis,검은등갈매기,Lesser Black-backed Gull (taimyrensis,0
+Anas platyrhynchos (Domestic type,청둥오리(가금,Mallard (Domestic type,0
+Aythya ferina x nyroca,흰죽지 x 적갈색흰죽지 (교잡종),Common Pochard x Ferruginous Duck (hybrid),0
+Larus fuscus taimyrensis,검은등갈매기,Lesser Black-backed Gull (taimyrensis),0
